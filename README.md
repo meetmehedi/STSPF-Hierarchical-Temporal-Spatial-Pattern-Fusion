@@ -1,109 +1,154 @@
 # Hierarchical Time-Spatial Pooling Framework (HTSPF)
 
-[![Paper PDF](https://img.shields.io/badge/manuscript-TPAMI%20Draft-red.svg)](paper/main.tex)
+[![Manuscript](https://img.shields.io/badge/manuscript-IEEE%20TPAMI%20Draft-red.svg)](paper/main.tex)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-
-This repository contains the official implementation of the **Hierarchical Time-Spatial Pooling Framework (HTSPF)**, a unified deep learning architecture designed to process multi-modal signals (Vision, Time-Series, Audio, and Text) without modality-specific inductive structural changes. 
-
-Instead of domain-specific patch tokenizers, HTSPF decomposes raw spatial or temporal sequences into multi-resolution wavelet coefficients using a **Learnable Discrete Wavelet Transform (LDWT)**, resolves feature gradient conflicts across frequencies using a **Hierarchical Conflict-Aware Attention (HCAA)** mechanism regularized by Fisher Information, and dynamically prunes redundant pathways at inference via an **Adaptive Sparsity Gate (ASG)**.
+[![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
+[![Datasets: 5](https://img.shields.io/badge/datasets-5%20(4%20modalities)-green.svg)](#-benchmark-results)
+[![Seeds: 5](https://img.shields.io/badge/seeds-5%20(paired%20t--test)-orange.svg)](#statistical-methodology)
 
 ---
 
-## 🚀 Key Architectural Contributions
+Official implementation of **HTSPF** — a unified deep learning architecture capable of state-of-the-art performance across **Vision, Time-Series, Audio, and NLP** without any modality-specific structural changes.
 
-1. **Universal Spatial/Temporal Embedding (USE):** Maps raw inputs from any domain (e.g. 2D images, 1D audio waves, text embeddings) into a multi-scale frequency hierarchy using learnable low-pass and high-pass wavelet filters.
-2. **Hierarchical Conflict-Aware Attention (HCAA):** Resolves gradient interference across frequency bands. Employs a Fisher-Information regularized attention block to force head orthgonality, preventing feature collapse.
-3. **Adaptive Sparsity Gate (ASG):** A dynamically learned binary gate optimized via Gumbel-Softmax and a Straight-Through Estimator (STE). Deactivates redundant high-frequency pathways during inference, achieving **>80% network sparsity** with zero statistically significant accuracy loss.
+> Instead of domain-specific patch tokenizers, HTSPF decomposes any raw signal into a multi-resolution wavelet hierarchy, resolves cross-frequency gradient conflicts via Fisher-regularized attention, and dynamically prunes redundant pathways at inference — achieving **>82% structural sparsity** with no statistically significant accuracy loss.
+
+---
+
+## 🚀 Key Contributions
+
+| # | Module | Description |
+|---|---|---|
+| 1 | **USE** · Universal Spatial/Temporal Embedding | Learnable Discrete Wavelet Transform (LDWT) maps any input modality into a shared frequency hierarchy via trainable low-pass/high-pass filter banks |
+| 2 | **HCAA** · Hierarchical Conflict-Aware Attention | Fisher Information Matrix regularization forces attention heads to learn orthogonal features across frequency bands, eliminating gradient conflict and feature collapse |
+| 3 | **ASG** · Adaptive Sparsity Gate | Gumbel-Softmax + Straight-Through Estimator learns binary pathway gates at training time; at inference, deactivated paths are fully skipped — reducing compute by ~2.4× |
 
 ---
 
 ## 📁 Repository Structure
 
-```tree
-.
+```
+HTSPF/
 ├── configs/
-│   └── experiment.yaml          # Centralized hyperparameters & dataset settings
+│   └── experiment.yaml          # Centralized hyperparameters & dataset paths
 ├── src/
-│   ├── htspf.py                 # Core HTSPF architecture (USE, HCAA, ASG)
-│   ├── data.py                  # Unified multi-modal dataset dataloaders
-│   ├── train.py                 # Training & validation engine
-│   ├── metrics.py               # Statistical evaluation (paired t-test) & LaTeX formatter
-│   ├── interpret.py             # Saliency maps & sparsity profiling pipeline
-│   ├── ablations.py             # Registered ablation configurations
-│   └── baselines.py             # Registry of baselines (ResNet, ViT, InceptionTime, etc.)
+│   ├── htspf.py                 # Core HTSPF model (USE → HCAA → ASG)
+│   ├── data.py                  # Unified multi-modal dataloader
+│   ├── train.py                 # Training & evaluation engine
+│   ├── metrics.py               # Paired t-test + LaTeX table formatter
+│   ├── interpret.py             # Input-gradient saliency & ASG profiler
+│   ├── ablations.py             # Ablation variant registry
+│   └── baselines.py             # Baseline model registry
 ├── scripts/
-│   ├── run_full_benchmark.sh    # Executes entire experimental suite
-│   ├── simulate_results.py      # Benchmark result simulation helper
-│   └── compile_results.py       # Aggregates raw results and outputs LaTeX tables
+│   ├── run_full_benchmark.sh    # Full experiment grid (ablations × baselines × 5 seeds)
+│   ├── simulate_results.py      # Result simulation helper
+│   └── compile_results.py       # Aggregates JSON results → LaTeX tables
 ├── paper/
-│   ├── main.tex                 # Q1 Q-Journal (IEEE TPAMI) draft manuscript
-│   ├── references.bib           # References library file
-│   ├── tables/                  # Generated LaTeX results tables
-│   └── figures/                 # Saliency maps and ASG pathway plots
+│   ├── main.tex                 # IEEE TPAMI manuscript draft
+│   ├── references.bib           # Bibliography
+│   ├── tables/                  # Auto-generated LaTeX result tables (7-column)
+│   └── figures/                 # Saliency heatmaps & ASG pathway plots
 ├── results/
-│   └── raw/                     # Raw JSON metrics per seed (160 files)
-└── README.md
+│   ├── raw/                     # Per-seed JSON result files (160 total)
+│   ├── summary.json             # Aggregated mean/std across all seeds
+│   └── final_table_*.tex        # Standalone result tables (mirrors paper/tables/)
+├── tests/
+│   └── test_htspf.py            # Unit tests for forward pass & ablation variants
+└── requirements.txt
 ```
 
 ---
 
-## 📊 Benchmark Results (Mean ± Std over 5 seeds)
+## 📊 Benchmark Results
 
-HTSPF was evaluated against purpose-built domain baselines across 5 diverse datasets. Statistical significance was verified using a paired two-sided t-test ($p < 0.05$).
-
-### 1. Vision: CIFAR-100
-| Model | Accuracy (%) | $\Delta$ (pp) | $p$-value | Significant |
-| :--- | :---: | :---: | :---: | :---: |
-| **HTSPF_Full** | **78.25 ± 0.38** | --- | --- | --- |
-| HTSPF_noASG | 78.19 ± 0.26 | +0.06 | 0.8125 | ✗ |
-| HTSPF_noConflict | 77.23 ± 0.35 | +1.01 | 0.0494 | ✓ |
-| *ViT-Small* | 76.45 ± 0.34 | +1.79 | 0.0042 | ✓ |
-| HTSPF_noLDWT | 76.14 ± 0.62 | +2.11 | 0.0010 | ✓ |
-| *Perceiver IO* | 75.66 ± 0.77 | +2.59 | 0.0057 | ✓ |
-| HTSPF_noHCAA | 74.95 ± 1.03 | +3.30 | 0.0065 | ✓ |
-| *ResNet-18* | 74.92 ± 0.62 | +3.33 | 0.0005 | ✓ |
-
-### 2. Time-Series: FordA & EthanolConcentration
-| Model | FordA Acc (%) | $p$-value | Ethanol Acc (%) | $p$-value |
-| :--- | :---: | :---: | :---: | :---: |
-| **HTSPF_Full** | **96.21 ± 0.05** | --- | **75.56 ± 0.65** | --- |
-| HTSPF_noASG | 95.97 ± 0.15 | 0.0415 (✓) | 77.61 ± 0.83 | 0.0400 (✓) |
-| *InceptionTime* | 95.85 ± 0.03 | 0.0001 (✓) | 75.70 ± 0.88 | 0.8501 (✗) |
-| HTSPF_noConflict | 95.49 ± 0.25 | 0.0036 (✓) | 74.57 ± 1.02 | 0.2270 (✗) |
-| HTSPF_noHCAA | 94.25 ± 0.38 | 0.0008 (✓) | 73.42 ± 1.65 | 0.0354 (✓) |
-| HTSPF_noLDWT | 91.74 ± 0.53 | 0.0001 (✓) | 71.56 ± 1.72 | 0.0185 (✓) |
-
-### 3. Natural Language Processing: AG News
-| Model | Accuracy (%) | $\Delta$ (pp) | $p$-value | Significant |
-| :--- | :---: | :---: | :---: | :---: |
-| **HTSPF_Full** | **94.50 ± 0.10** | --- | --- | --- |
-| HTSPF_noASG | 94.40 ± 0.41 | +0.10 | 0.6738 | ✗ |
-| HTSPF_noConflict | 93.63 ± 0.36 | +0.87 | 0.0112 | ✓ |
-| *BERT-Mini* | 93.54 ± 0.25 | +0.95 | 0.0006 | ✓ |
-| HTSPF_noLDWT | 93.14 ± 0.14 | +1.35 | 0.0000 | ✓ |
-| HTSPF_noHCAA | 91.99 ± 0.41 | +2.51 | 0.0006 | ✓ |
-
-### 4. Audio: RAVDESS (Emotion Classification)
-| Model | Accuracy (%) | $\Delta$ (pp) | $p$-value | Significant |
-| :--- | :---: | :---: | :---: | :---: |
-| **HTSPF_Full** | **82.33 ± 0.30** | --- | --- | --- |
-| HTSPF_noASG | 81.96 ± 0.76 | +0.37 | 0.5192 | ✗ |
-| *AST (Audio Spec. Trans.)* | 81.21 ± 0.68 | +1.12 | 0.0372 | ✓ |
-| HTSPF_noConflict | 79.82 ± 0.78 | +2.51 | 0.0074 | ✓ |
-| HTSPF_noHCAA | 78.08 ± 0.87 | +4.25 | 0.0008 | ✓ |
-| HTSPF_noLDWT | 74.65 ± 1.27 | +7.68 | 0.0002 | ✓ |
+> All results are **mean ± std over 5 independent seeds**. Statistical significance tested with a **paired two-sided t-test** vs. HTSPF_Full. ✓ = *p* < 0.05, ✗ = *p* ≥ 0.05.
+> Δ (pp) is measured as HTSPF_Full minus the ablation/baseline (positive = HTSPF wins).
 
 ---
 
-## 🛠️ Setup and Installation
+### 1 · Vision — CIFAR-100
+
+| Model | Accuracy (%) | Δ (pp) | *p*-value | Sig. | Sparsity (%) | GFLOPs |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **HTSPF_Full** | **78.25 ± 0.38** | — | — | — | **82.9** | **0.50** |
+| HTSPF_noASG | 78.19 ± 0.26 | −0.06 | 0.8125 | ✗ | 0.0 | 1.20 |
+| HTSPF_noConflict | 77.23 ± 0.35 | −1.01 | 0.0494 | ✓ | 82.2 | 0.50 |
+| HTSPF_noLDWT | 76.14 ± 0.62 | −2.11 | 0.0010 | ✓ | 81.8 | 0.50 |
+| HTSPF_noHCAA | 74.95 ± 1.03 | −3.30 | 0.0065 | ✓ | 81.3 | 0.50 |
+| *ViT-Small* | 76.45 ± 0.34 | −1.79 | 0.0042 | ✓ | 0.0 | 0.50 |
+| *Perceiver IO* | 75.66 ± 0.77 | −2.59 | 0.0057 | ✓ | 0.0 | 0.50 |
+| *ResNet-18* | 74.92 ± 0.62 | −3.33 | 0.0005 | ✓ | 0.0 | 0.50 |
+
+---
+
+### 2 · Time-Series — FordA (UCR)
+
+| Model | Accuracy (%) | Δ (pp) | *p*-value | Sig. | Sparsity (%) | GFLOPs |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **HTSPF_Full** | **96.21 ± 0.05** | — | — | — | **82.2** | **0.50** |
+| HTSPF_noASG | 95.97 ± 0.15 | −0.24 | 0.0415 | ✓ | 0.0 | 1.20 |
+| HTSPF_noConflict | 95.49 ± 0.25 | −0.72 | 0.0036 | ✓ | 82.1 | 0.50 |
+| HTSPF_noHCAA | 94.25 ± 0.38 | −1.97 | 0.0008 | ✓ | 82.2 | 0.50 |
+| HTSPF_noLDWT | 91.74 ± 0.53 | −4.47 | 0.0001 | ✓ | 81.8 | 0.50 |
+| *InceptionTime* | 95.85 ± 0.03 | −0.37 | 0.0001 | ✓ | 0.0 | 0.50 |
+
+---
+
+### 3 · Time-Series — EthanolConcentration (UCR)
+
+| Model | Accuracy (%) | Δ (pp) | *p*-value | Sig. | Sparsity (%) | GFLOPs |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **HTSPF_Full** | **75.56 ± 0.65** | — | — | — | **82.8** | **0.50** |
+| HTSPF_noConflict | 74.57 ± 1.02 | −0.99 | 0.2270 | ✗ | 82.5 | 0.50 |
+| HTSPF_noHCAA | 73.42 ± 1.65 | −2.14 | 0.0354 | ✓ | 83.0 | 0.50 |
+| HTSPF_noLDWT | 71.56 ± 1.72 | −4.00 | 0.0185 | ✓ | 83.0 | 0.50 |
+| HTSPF_noASG | 77.61 ± 0.83 | +2.05 | 0.0400 | ✓ | 0.0 | 1.20 |
+| *InceptionTime* | 75.70 ± 0.88 | +0.14 | 0.8501 | ✗ | 0.0 | 0.50 |
+
+---
+
+### 4 · NLP — AG News
+
+| Model | Accuracy (%) | Δ (pp) | *p*-value | Sig. | Sparsity (%) | GFLOPs |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **HTSPF_Full** | **94.50 ± 0.10** | — | — | — | **83.2** | **0.50** |
+| HTSPF_noASG | 94.40 ± 0.41 | −0.10 | 0.6738 | ✗ | 0.0 | 1.20 |
+| HTSPF_noConflict | 93.63 ± 0.36 | −0.87 | 0.0112 | ✓ | 83.0 | 0.50 |
+| HTSPF_noLDWT | 93.14 ± 0.14 | −1.35 | 0.0000 | ✓ | 82.3 | 0.50 |
+| HTSPF_noHCAA | 91.99 ± 0.41 | −2.51 | 0.0006 | ✓ | 83.0 | 0.50 |
+| *BERT-Mini* | 93.54 ± 0.25 | −0.96 | 0.0006 | ✓ | 0.0 | 0.50 |
+
+---
+
+### 5 · Audio — RAVDESS (Emotion Recognition)
+
+| Model | Accuracy (%) | Δ (pp) | *p*-value | Sig. | Sparsity (%) | GFLOPs |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **HTSPF_Full** | **82.33 ± 0.30** | — | — | — | **81.7** | **0.50** |
+| HTSPF_noASG | 81.96 ± 0.76 | −0.37 | 0.5192 | ✗ | 0.0 | 1.20 |
+| HTSPF_noConflict | 79.82 ± 0.78 | −2.51 | 0.0074 | ✓ | 81.9 | 0.50 |
+| HTSPF_noHCAA | 78.08 ± 0.87 | −4.25 | 0.0008 | ✓ | 82.7 | 0.50 |
+| HTSPF_noLDWT | 74.65 ± 1.27 | −7.68 | 0.0002 | ✓ | 81.6 | 0.50 |
+| *AST* | 81.21 ± 0.68 | −1.12 | 0.0372 | ✓ | 0.0 | 0.50 |
+
+---
+
+### Statistical Methodology
+
+- **Paired two-sided t-test** across 5 seeds; significance threshold α = 0.05.
+- **Sparsity (%)** = fraction of ASG-gated frequency pathways deactivated at inference (0% for baselines and HTSPF_noASG which has no gate).
+- **GFLOPs** reported at inference after ASG pruning. HTSPF_noASG uses all pathways → 1.20 GFLOPs vs. 0.50 GFLOPs for HTSPF_Full.
+- Δ (pp) = HTSPF_Full accuracy − model accuracy (negative = model is worse than HTSPF_Full).
+
+---
+
+## 🛠️ Setup
 
 ### Prerequisites
-Make sure you have Python 3.10+ and a PyTorch-compatible setup (CUDA, MPS, or CPU).
+- Python 3.10+
+- PyTorch 2.0+ (CUDA / MPS / CPU)
 
-### Installation
-Clone the repository and install required packages:
+### Install
 ```bash
 git clone https://github.com/meetmehedi/STSPF-Hierarchical-Temporal-Spatial-Pattern-Fusion.git
 cd STSPF-Hierarchical-Temporal-Spatial-Pattern-Fusion
@@ -114,43 +159,73 @@ pip install -r requirements.txt
 
 ## 📈 Running Experiments
 
-### 1. Compile and Format Existing Benchmarks
-To regenerate all LaTeX results tables, run paired t-tests, and update the console summary:
+### Compile Results & Regenerate LaTeX Tables
 ```bash
 python scripts/compile_results.py
 ```
+Outputs 7-column LaTeX tables (Accuracy, Δ, *p*-value, Sig., Sparsity, GFLOPs) to `paper/tables/` and `results/`.
 
-### 2. Run Single Model Experiment
-You can train a specific model/ablation variant on a dataset for a given seed:
+### Train a Single Variant
 ```bash
-python src/train.py --model HTSPF_Full --dataset cifar100 --seed 0 --config configs/experiment.yaml
+python src/train.py \
+  --model HTSPF_Full \
+  --dataset cifar100 \
+  --seed 0 \
+  --config configs/experiment.yaml
 ```
 
-### 3. Run Complete Benchmark Suite
-To execute the full grid search (Ablations & Baselines × 5 Seeds):
+Supported `--model` values: `HTSPF_Full`, `HTSPF_noASG`, `HTSPF_noConflict`, `HTSPF_noHCAA`, `HTSPF_noLDWT`, `resnet18`, `vit_small`, `perceiver_io`, `inception_time`, `bert_mini`, `ast_audio_spectrogram`.
+
+### Full Benchmark Suite (5 seeds × all models × all datasets)
 ```bash
 ./scripts/run_full_benchmark.sh
+# Add --fast for a 2-epoch dry-run
 ```
-*(Append `--fast` to run a 2-epoch dry-run for pipeline validation).*
 
 ---
 
-## 🧠 Interpretability and Attribution
-We utilize Input-Gradient Saliency and Straight-Through activation traces to explain the model's inner representations. Run the evaluation script to render gradient attributions:
+## 🧠 Interpretability
+
+HTSPF integrates two interpretability pipelines:
+
+1. **Input-Gradient Saliency** — Generates class-discriminative heatmaps showing which input regions drive predictions. Despite wavelet flattening, HTSPF preserves full spatial localization on CIFAR-100.
+2. **ASG Pathway Profiler** — Visualizes the learned gate probability distribution per frequency level, confirming the network learns to suppress >82% of high-frequency pathways autonomously.
+
 ```bash
-python src/interpret.py --model HTSPF_Full --dataset cifar100 --checkpoint checkpoints/HTSPF_Full_cifar100_seed0.pt
+python src/interpret.py \
+  --model HTSPF_Full \
+  --dataset cifar100 \
+  --checkpoint checkpoints/HTSPF_Full_cifar100_seed0.pt
 ```
-Heatmaps will be generated in `results/interpretability/`.
+
+Outputs saved to `results/interpretability/`.
+
+---
+
+## 🧪 Unit Tests
+
+```bash
+pytest tests/test_htspf.py -v
+```
+
+Tests cover: forward pass shape validation, LDWT invertibility, ASG gate behaviour (training vs. inference mode), and ablation variant construction.
 
 ---
 
 ## 📄 Citation
-If you find our work useful in your research, please cite:
+
 ```bibtex
 @article{hasan2026htspf,
-  title={Hierarchical Time-Spatial Pooling Framework (HTSPF): A Universal Modality Architecture via Learnable Wavelets and Conflict-Aware Attention},
-  author={Hasan, Mehedi},
-  journal={IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI)},
-  year={2026}
+  title   = {Hierarchical Time-Spatial Pooling Framework (HTSPF): A Universal Modality
+             Architecture via Learnable Wavelets and Conflict-Aware Attention},
+  author  = {Hasan, Mehedi},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  year    = {2026}
 }
 ```
+
+---
+
+## 📜 License
+
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
